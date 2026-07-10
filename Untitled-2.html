@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MEDCASH - Brutalist Dashboard</title>
+    <!-- Favicon Buku Catatan (Emoji SVG) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📓</text></svg>">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js DataLabels Plugin (TAMBAHAN BARU) -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <!-- PapaParse -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <!-- Tone.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brutalBg: '#e2e8f0', // Abu-abu pucat khas kertas retro
+                        brutalYellow: '#fde047',
+                        brutalPink: '#f472b6',
+                        brutalBlue: '#60a5fa',
+                        brutalGreen: '#4ade80',
+                        brutalRed: '#f87171'
+                    },
+                    fontFamily: {
+                        display: ['"Space Grotesk"', 'sans-serif'],
+                        mono: ['"Space Mono"', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap');
+        
+        body { 
+            font-family: 'Space Mono', monospace; 
+            background-color: #f4f4f0; 
+            background-image: radial-gradient(#d1d5db 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        h1, h2, h3, .font-display { font-family: 'Space Grotesk', sans-serif; }
+        
+        /* Ciri khas Brutalism: Border tebal dan shadow solid murni (tanpa blur) */
+        .brutal-box {
+            background-color: #ffffff;
+            border: 4px solid #000000;
+            box-shadow: 8px 8px 0px 0px #000000;
+            transition: all 0.2s ease;
+        }
+        .brutal-btn {
+            border: 4px solid #000000;
+            box-shadow: 6px 6px 0px 0px #000000;
+            transition: all 0.1s ease;
+        }
+        .brutal-btn:hover {
+            transform: translate(2px, 2px);
+            box-shadow: 4px 4px 0px 0px #000000;
+        }
+        .brutal-btn:active {
+            transform: translate(6px, 6px);
+            box-shadow: 0px 0px 0px 0px #000000;
+        }
+        
+        /* Table Styles Brutalist */
+        table, th, td {
+            border: 3px solid #000000;
+        }
+        th {
+            background-color: #000000;
+            color: #ffffff;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        
+        /* Custom Scrollbar Kotak */
+        ::-webkit-scrollbar { width: 12px; height: 12px; border-left: 3px solid #000; }
+        ::-webkit-scrollbar-track { background: #f4f4f0; }
+        ::-webkit-scrollbar-thumb { background: #000; border: 2px solid #f4f4f0; }
+    </style>
+</head>
+<body class="text-black antialiased min-h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-brutalYellow border-b-4 border-black sticky top-0 z-50 py-2">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-14 items-center">
+                <div class="flex items-center gap-3">
+                    <!-- Ikon Banknote/Uang (Pengganti Tengkorak) -->
+                    <div class="bg-black text-white p-2 border-2 border-black">
+                        <i data-lucide="banknote" class="w-6 h-6"></i>
+                    </div>
+                    <span class="font-display font-black text-2xl tracking-tighter uppercase">MEDCASH_</span>
+                </div>
+                <div class="flex items-center gap-3 text-sm font-bold bg-white px-3 py-1 border-4 border-black brutal-shadow">
+                    <span id="status-koneksi" class="flex items-center gap-2 uppercase">
+                        <div class="w-3 h-3 bg-brutalGreen border-2 border-black"></div> ONLINE
+                    </span>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 w-full">
+        
+        <!-- Header -->
+        <div class="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6 bg-white p-6 brutal-box">
+            <div>
+                <h1 class="text-4xl md:text-5xl font-black font-display uppercase mb-2">System.Cashflow</h1>
+                <p class="font-bold text-gray-700 uppercase bg-brutalYellow inline-block px-2 border-2 border-black mb-4 md:mb-0">LOG PENGELUARAN MAHASISWA FK</p>
+                
+                <div class="mt-4 flex items-center gap-3">
+                    <label for="month-filter" class="font-bold bg-black text-white px-2 py-1 border-2 border-black text-sm">FILTER BULAN:</label>
+                    <div class="relative">
+                        <select id="month-filter" onchange="applyFilter(this.value)" onmouseenter="playHoverSound()" class="brutal-btn appearance-none bg-white font-black font-mono border-4 border-black px-4 py-2 pr-10 cursor-pointer uppercase text-sm focus:outline-none">
+                            <option value="All">SEMUA BULAN</option>
+                        </select>
+                        <i data-lucide="chevron-down" class="w-5 h-5 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none text-black"></i>
+                    </div>
+                </div>
+            </div>
+            <button onclick="fetchData()" onmouseenter="playHoverSound()" class="brutal-btn bg-brutalPink text-black px-6 py-3 font-black uppercase flex items-center gap-2 text-lg">
+                <i data-lucide="refresh-cw" class="w-5 h-5"></i> FETCH DATA
+            </button>
+        </div>
+
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
+            <!-- Card Pengeluaran -->
+            <div class="brutal-box bg-brutalRed p-6 flex flex-col justify-between">
+                <div class="flex justify-between items-start mb-4">
+                    <p class="font-bold bg-black text-white px-2 py-1 text-sm border-2 border-black">TOTAL KELUAR</p>
+                    <i data-lucide="arrow-down-right" class="w-8 h-8 bg-white border-2 border-black p-1"></i>
+                </div>
+                <h2 class="text-3xl md:text-4xl font-black font-display truncate" id="total-pengeluaran">Rp 0</h2>
+            </div>
+
+            <!-- Card Pemasukan -->
+            <div class="brutal-box bg-brutalGreen p-6 flex flex-col justify-between">
+                <div class="flex justify-between items-start mb-4">
+                    <p class="font-bold bg-black text-white px-2 py-1 text-sm border-2 border-black">TOTAL MASUK</p>
+                    <i data-lucide="arrow-up-right" class="w-8 h-8 bg-white border-2 border-black p-1"></i>
+                </div>
+                <h2 class="text-3xl md:text-4xl font-black font-display truncate" id="total-pemasukan">Rp 0</h2>
+            </div>
+
+            <!-- Card Sisa Uang (DENGAN METER BAR) -->
+            <div class="brutal-box bg-white p-6 flex flex-col justify-between">
+                <div class="flex justify-between items-start mb-2">
+                    <p class="font-bold bg-black text-white px-2 py-1 text-sm border-2 border-black">SISA UANG</p>
+                    <i data-lucide="wallet" class="w-8 h-8 bg-black text-white border-2 border-black p-1"></i>
+                </div>
+                <h2 class="text-3xl md:text-4xl font-black font-display truncate mb-4" id="sisa-uang">Rp 0</h2>
+                
+                <!-- Wrapper Meter Bar Brutalist -->
+                <div class="w-full bg-gray-200 border-4 border-black h-8 relative overflow-hidden flex items-center brutal-shadow-sm">
+                    <!-- Bar-nya sendiri yang ukurannya gerak -->
+                    <div id="sisa-meter" class="h-full bg-brutalGreen transition-all duration-700 ease-out w-full border-r-4 border-black"></div>
+                    <!-- Teks Persentase di tengah-tengah -->
+                    <span id="sisa-persen" class="absolute inset-0 flex items-center justify-center text-sm font-black font-mono mix-blend-difference text-white uppercase tracking-widest">100% HEALTH</span>
+                </div>
+            </div>
+
+            <!-- Card Paling Boros -->
+            <div class="brutal-box bg-brutalBlue p-6 flex flex-col justify-between">
+                <div class="flex justify-between items-start mb-4">
+                    <p class="font-bold bg-black text-white px-2 py-1 text-sm border-2 border-black">TOP KATEGORI</p>
+                    <i data-lucide="flame" class="w-8 h-8 bg-white border-2 border-black p-1"></i>
+                </div>
+                <h2 class="text-2xl md:text-3xl font-black font-display truncate uppercase" id="kategori-terbanyak">-</h2>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+            <!-- Pie Chart -->
+            <div class="brutal-box p-6 lg:col-span-1 flex flex-col bg-white">
+                <h3 class="text-xl font-black font-display uppercase border-b-4 border-black pb-2 mb-4 bg-brutalYellow inline-block px-2">ALOKASI_DANA</h3>
+                <div class="relative flex-grow flex items-center justify-center min-h-[300px]">
+                    <canvas id="kategoriChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Bar Chart -->
+            <div class="brutal-box p-6 lg:col-span-2 flex flex-col bg-white">
+                <h3 class="text-xl font-black font-display uppercase border-b-4 border-black pb-2 mb-4 bg-brutalYellow inline-block px-2">TIMELINE_PENGELUARAN</h3>
+                <div class="relative flex-grow min-h-[300px]">
+                    <canvas id="harianChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Table Section -->
+        <div class="brutal-box overflow-hidden mb-10 bg-white">
+            <div class="p-6 border-b-4 border-black flex justify-between items-center bg-brutalYellow">
+                <h3 class="text-xl font-black font-display uppercase">RAW_DATA_LOG</h3>
+                <span class="text-sm font-bold bg-black text-white px-3 py-1 border-2 border-black" id="total-rows">0 ENTRIES</span>
+            </div>
+            <div class="overflow-x-auto p-4">
+                <table class="w-full text-left border-collapse min-w-[800px]">
+                    <thead>
+                        <tr>
+                            <th class="p-3">TGL</th>
+                            <th class="p-3">TOKO</th>
+                            <th class="p-3">ITEM</th>
+                            <th class="p-3">KATEGORI</th>
+                            <th class="p-3">TIPE</th>
+                            <th class="p-3">METODE</th>
+                            <th class="p-3 text-right">NOMINAL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body" class="text-sm font-bold bg-white">
+                        <!-- Data will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        lucide.createIcons();
+
+        // ==========================================
+        // 🛠️ SETUP LINK GOOGLE SHEETS LU DI SINI
+        // ==========================================
+        // LINK YANG BENER DARI SCREENSHOT LU:
+        const SPREADSHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRs0Y7C0SJfKsSU33EooTNEqBeOfhe69fE8GH8s3ttTlykCSoddLO4BZ4K9kedMG4kjraRetkFmZrNy/pub?gid=0&single=true&output=csv";
+
+        // Data dummy 
+        const dummyCSV = `Tanggal,Item,Kategori,Nominal,Tipe Transaksi,Metode Pembayaran,Catatan,Toko
+10-06-2026,Nasi Padang,Makanan,25000,Pengeluaran,QRIS,-,RM Sederhana
+10-06-2026,Bensin Motor,Transportasi,20000,Pengeluaran,Cash,-,Pertamina
+11-06-2026,Kopi Susu,Hiburan,18000,Pengeluaran,Gopay,Nugas anatomi,Kopi Kenangan
+12-06-2026,Stetoskop Littmann,Kebutuhan Medis,1500000,Pengeluaran,Transfer,Alat praktek,Toko Alkes JKT
+12-06-2026,Uang Saku Ortu,Pemasukan,2000000,Pemasukan,Transfer,Bulanan,-
+13-06-2026,Indomie & Telur,Kebutuhan Pokok,45000,Pengeluaran,QRIS,Stok kosan,Indomaret
+14-06-2026,Laundry,Kebutuhan Kos,30000,Pengeluaran,Cash,-,Laundry Bersih
+05-05-2026,Buku Catatan,Edukasi,80000,Pengeluaran,QRIS,-,Gramedia`;
+
+        let chartKategori = null;
+        let chartHarian = null;
+
+        let globalRawData = [];
+        let activeMonth = 'All';
+        let synth = null;
+
+        function initAudio() {
+            if (!synth) {
+                synth = new Tone.PolySynth(Tone.Synth, {
+                    oscillator: { type: "square" },
+                    envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.1 }
+                }).toDestination();
+                synth.volume.value = -15; 
+            }
+        }
+
+        function playClickSound() {
+            initAudio();
+            Tone.start();
+            synth.triggerAttackRelease("C5", "32n"); 
+        }
+
+        function playHoverSound() {
+            initAudio();
+            Tone.start();
+            synth.triggerAttackRelease("G4", "64n");
+        }
+
+        function playSuccessSound() {
+            initAudio();
+            Tone.start();
+            const now = Tone.now();
+            synth.triggerAttackRelease("C5", "16n", now);
+            synth.triggerAttackRelease("E5", "16n", now + 0.1);
+            synth.triggerAttackRelease("G5", "8n", now + 0.2);
+        }
+
+        const formatRp = (angka) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+        };
+
+        function parseCSVText(csvText, statusIcon, isInitialLoad, statusText) {
+            Papa.parse(csvText, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    try {
+                        globalRawData = results.data.filter(row => row['Tanggal'] && row['Tanggal'].trim() !== ""); 
+                        if (globalRawData.length === 0) throw new Error("DATA KOSONG / GAGAL PARSE");
+                        
+                        populateMonthFilter(globalRawData);
+                        processData(globalRawData, activeMonth);
+                        if (!isInitialLoad) playSuccessSound();
+                        statusIcon.innerHTML = `<div class="w-3 h-3 bg-brutalGreen border-2 border-black"></div> ${statusText}`;
+                    } catch(e) {
+                        statusIcon.innerHTML = `<div class="w-3 h-3 bg-brutalRed border-2 border-black"></div> <span class="text-xs text-red-600 font-bold ml-1">${e.message}</span>`;
+                    }
+                },
+                error: function() {
+                    statusIcon.innerHTML = `<div class="w-3 h-3 bg-brutalRed border-2 border-black"></div> <span class="text-xs text-red-600 font-bold ml-1">ERROR PARSING DATA</span>`;
+                }
+            });
+        }
+
+        // ==========================================
+        // 🚀 MESIN PENARIK DATA FINAL (NETLIFY VERSION)
+        // ==========================================
+        function fetchData(isInitialLoad = false) {
+            if (!isInitialLoad) playClickSound();
+            
+            const statusIcon = document.getElementById('status-koneksi');
+            statusIcon.innerHTML = `<div class="w-3 h-3 bg-yellow-400 border-2 border-black animate-ping"></div> SYNCING...`;
+
+            if (SPREADSHEET_CSV_URL === "") {
+                parseCSVText(dummyCSV, statusIcon, isInitialLoad, "DUMMY MODE");
+                return;
+            } 
+
+            // Tambah timestamp biar browser gak nge-cache data lama
+            const noCacheUrl = SPREADSHEET_CSV_URL + "&anti_cache=" + new Date().getTime();
+
+            // Pakai PapaParse langsung buat download. 
+            // Ini cara paling ampuh buat nembus CORS di Netlify.
+            Papa.parse(noCacheUrl, {
+                download: true,
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    try {
+                        globalRawData = results.data.filter(row => row['Tanggal'] && row['Tanggal'].trim() !== ""); 
+                        if (globalRawData.length === 0) throw new Error("DATA KOSONG");
+                        
+                        populateMonthFilter(globalRawData);
+                        processData(globalRawData, activeMonth);
+                        if (!isInitialLoad) playSuccessSound();
+                        statusIcon.innerHTML = `<div class="w-3 h-3 bg-brutalGreen border-2 border-black"></div> ONLINE`;
+                    } catch(e) {
+                        statusIcon.innerHTML = `<div class="w-3 h-3 bg-brutalRed border-2 border-black"></div> <span class="text-xs text-red-600 font-bold ml-1">${e.message}</span>`;
+                    }
+                },
+                error: function(err) {
+                    // INI DIA BAGIAN PENTING BUAT DETEKSI ERRORNYA
+                    let pesanError = "FAILED TO FETCH";
+                    if (err && err.type === "xmlhttprequest") {
+                        // Kalau errornya ini, biasanya karena linknya mati (404) atau diblokir CORS
+                        pesanError = "LINK MATI/DIBLOKIR (Cek Link Publikasi)";
+                    } else if (err && err.code === "PapaParse") {
+                        // Kalau errornya ini, biasanya Google minta login (nggak ngasih CSV)
+                        pesanError = "DIBLOKIR GOOGLE (Minta Login)";
+                    }
+                    
+                    console.error("PapaParse Error:", err);
+                    statusIcon.innerHTML = `<div class="w-3 h-3 bg-brutalRed border-2 border-black"></div> <span class="text-xs text-red-600 font-bold ml-1">${pesanError}</span>`;
+                }
+            });
+        }
+
+        function populateMonthFilter(data) {
+            const select = document.getElementById('month-filter');
+            const months = new Set();
+            
+            data.forEach(row => {
+                if (row['Tanggal'] && row['Tanggal'] !== "Tidak disebut") {
+                    const parts = row['Tanggal'].split('-');
+                    if (parts.length >= 3) {
+                        months.add(`${parts[1]}-${parts[2]}`);
+                    }
+                }
+            });
+            
+            select.innerHTML = '<option value="All">SEMUA BULAN</option>';
+            
+            Array.from(months).sort((a,b) => {
+                const [mA, yA] = a.split('-');
+                const [mB, yB] = b.split('-');
+                return new Date(yB, mB-1) - new Date(yA, mA-1); 
+            }).forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.text = m.replace('-', '/'); 
+                select.appendChild(opt);
+            });
+            select.value = activeMonth;
+        }
+
+        function applyFilter(month) {
+            playClickSound(); 
+            activeMonth = month;
+            processData(globalRawData, activeMonth);
+        }
+
+        function processData(data, filterMonth = 'All') {
+            let validData = data.filter(row => row['Tanggal'] && row['Nominal']);
+            
+            if (filterMonth !== 'All') {
+                validData = validData.filter(row => {
+                    const parts = row['Tanggal'].split('-');
+                    if (parts.length >= 3) {
+                        return `${parts[1]}-${parts[2]}` === filterMonth;
+                    }
+                    return false;
+                });
+            }
+            
+            let totalPengeluaran = 0;
+            let totalPemasukan = 0;
+            const kategoriMap = {};
+            const harianMap = {};
+
+            const tableBody = document.getElementById('table-body');
+            tableBody.innerHTML = '';
+
+            [...validData].reverse().forEach((row, index) => {
+                const nominal = parseInt(row['Nominal']) || 0;
+                const tipe = row['Tipe Transaksi'] || 'Pengeluaran';
+                const kategori = row['Kategori'] || 'Lainnya';
+                const tanggal = row['Tanggal'];
+
+                if (tipe.toLowerCase().includes('pengeluaran')) {
+                    totalPengeluaran += nominal;
+                    kategoriMap[kategori] = (kategoriMap[kategori] || 0) + nominal;
+                    harianMap[tanggal] = (harianMap[tanggal] || 0) + nominal;
+                } else {
+                    totalPemasukan += nominal;
+                }
+
+                if (index < 15) {
+                    const isPengeluaran = tipe.toLowerCase().includes('pengeluaran');
+                    const colorClass = isPengeluaran ? 'bg-brutalRed text-black' : 'bg-brutalGreen text-black';
+                    const sign = isPengeluaran ? '-' : '+';
+                    
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-gray-100 transition-colors';
+                    // PERBAIKAN DI SINI: Tambahin class 'whitespace-nowrap' di elemen span kategori
+                    tr.innerHTML = `
+                        <td class="p-3 border-r-3 border-black">${row['Tanggal']}</td>
+                        <td class="p-3 uppercase">${row['Toko'] || '-'}</td>
+                        <td class="p-3 uppercase">${row['Item']}</td>
+                        <td class="p-3"><span class="bg-brutalYellow px-2 py-1 border-2 border-black uppercase text-xs whitespace-nowrap">${row['Kategori']}</span></td>
+                        <td class="p-3 uppercase">${tipe}</td>
+                        <td class="p-3 uppercase">${row['Metode Pembayaran'] || '-'}</td>
+                        <td class="p-3 text-right font-black ${colorClass}">${sign} ${formatRp(nominal)}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                }
+            });
+
+            document.getElementById('total-pengeluaran').innerText = formatRp(totalPengeluaran);
+            document.getElementById('total-pemasukan').innerText = formatRp(totalPemasukan);
+            
+            // LOGIKA SISA UANG & METER BAR BERWARNA
+            const sisaUang = totalPemasukan - totalPengeluaran;
+            document.getElementById('sisa-uang').innerText = formatRp(sisaUang);
+
+            let persentaseSisa = 0;
+            if (totalPemasukan > 0) {
+                persentaseSisa = (sisaUang / totalPemasukan) * 100;
+                if (persentaseSisa < 0) persentaseSisa = 0; // Mentok di 0% kalau ngutang/minus
+            } else if (totalPemasukan === 0 && totalPengeluaran === 0) {
+                persentaseSisa = 100; // Kondisi awal belum ada data
+            }
+
+            const meterBar = document.getElementById('sisa-meter');
+            const persenText = document.getElementById('sisa-persen');
+            
+            // Update lebar bar
+            meterBar.style.width = `${persentaseSisa}%`;
+            
+            // Hapus semua warna sebelumnya
+            meterBar.classList.remove('bg-brutalGreen', 'bg-brutalYellow', 'bg-brutalRed');
+            
+            // Set warna berdasarkan persentase
+            if (persentaseSisa >= 50) {
+                meterBar.classList.add('bg-brutalGreen');
+                persenText.innerText = `${persentaseSisa.toFixed(0)}% HEALTH`;
+            } else if (persentaseSisa >= 20) {
+                meterBar.classList.add('bg-brutalYellow');
+                persenText.innerText = `${persentaseSisa.toFixed(0)}% WARNING`;
+            } else {
+                meterBar.classList.add('bg-brutalRed');
+                persenText.innerText = `${persentaseSisa.toFixed(0)}% CRITICAL`;
+            }
+
+            document.getElementById('total-rows').innerText = `${validData.length} ENTRIES`;
+
+            let topKategori = "-";
+            let maxNominal = 0;
+            for (const [kat, nom] of Object.entries(kategoriMap)) {
+                if (nom > maxNominal) { maxNominal = nom; topKategori = kat; }
+            }
+            document.getElementById('kategori-terbanyak').innerText = topKategori;
+
+            Chart.defaults.font.family = "'Space Mono', monospace";
+            Chart.defaults.color = '#000';
+            Chart.defaults.font.weight = 'bold';
+
+            renderPieChart(kategoriMap);
+            renderBarChart(harianMap);
+        }
+
+        const brutalColors = [
+            '#fde047', '#f472b6', '#60a5fa', '#4ade80', '#f87171', '#c084fc', '#fb923c', '#2dd4bf'
+        ];
+
+        function renderPieChart(dataMap) {
+            const ctx = document.getElementById('kategoriChart').getContext('2d');
+            if (chartKategori) chartKategori.destroy();
+
+            // Daftarin Plugin Datalabels ke Chart.js
+            Chart.register(ChartDataLabels);
+
+            chartKategori = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(dataMap),
+                    datasets: [{
+                        data: Object.values(dataMap),
+                        backgroundColor: brutalColors,
+                        borderColor: '#000',
+                        borderWidth: 4,
+                        hoverOffset: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'right', labels: { usePointStyle: false, boxWidth: 20, boxHeight: 20 } },
+                        tooltip: {
+                            backgroundColor: '#000', titleFont: { family: 'Space Grotesk', size: 14 }, bodyFont: { family: 'Space Mono', size: 14 }, padding: 10, cornerRadius: 0
+                        },
+                        // Konfigurasi Persentase Text di Donut
+                        datalabels: {
+                            color: '#000',
+                            font: { family: 'Space Grotesk', weight: 'bold', size: 16 },
+                            formatter: (value, ctx) => {
+                                let sum = 0;
+                                let dataArr = ctx.chart.data.datasets[0].data;
+                                dataArr.map(data => { sum += data; });
+                                let percentage = (value * 100 / sum).toFixed(0) + "%";
+                                return percentage;
+                            }
+                        }
+                    },
+                    cutout: '50%'
+                }
+            });
+        }
+
+        function renderBarChart(dataMap) {
+            const ctx = document.getElementById('harianChart').getContext('2d');
+            if (chartHarian) chartHarian.destroy();
+
+            const sortedDates = Object.keys(dataMap).sort((a, b) => {
+                const [d1, m1, y1] = a.split('-');
+                const [d2, m2, y2] = b.split('-');
+                return new Date(y1, m1-1, d1) - new Date(y2, m2-1, d2);
+            });
+
+            const sortedValues = sortedDates.map(date => dataMap[date]);
+
+            chartHarian = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedDates.map(d => d.substring(0,5)),
+                    datasets: [{
+                        label: 'PENGELUARAN',
+                        data: sortedValues,
+                        backgroundColor: '#60a5fa',
+                        borderColor: '#000',
+                        borderWidth: 4,
+                        barThickness: 'flex',
+                        maxBarThickness: 50
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: { backgroundColor: '#000', padding: 10, cornerRadius: 0 }
+                    },
+                    scales: {
+                        y: { 
+                            beginAtZero: true, 
+                            grid: { color: '#000', drawBorder: true, lineWidth: 2 },
+                            border: { width: 4, color: '#000' }
+                        },
+                        x: { 
+                            grid: { display: false },
+                            border: { width: 4, color: '#000' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Panggil fetchData() dengan parameter TRUE pas awal load biar gak nabrak aturan autoplay browser
+        window.onload = () => fetchData(true);
+
+    </script>
+</body>
+</html>
